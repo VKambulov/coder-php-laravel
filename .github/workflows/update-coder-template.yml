@@ -21,7 +21,7 @@ jobs:
         uses: matifali/update-coder-template@v3
         with:
           id: coder-php-laravel
-          dir: coder-php-laravel
+          dir: ${{ secrets.CODER_DIR }}
           url: ${{ secrets.CODER_URL }}
           name: ${{ steps.latest_commit.outputs.hash }}
           message: ${{ steps.commit_title.outputs.title }}
