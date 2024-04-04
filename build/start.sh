@@ -7,6 +7,8 @@ cd $WORKDIR
 sudo chown -R $USER:$USER /var/www/html
 sudo chown -R $USER:$USER /home/$USER
 
+sudo rm -rf $WORKDIR/*
+
 if [ ! -z "$WWWUSER" ]; then
     sudo usermod -u $WWWUSER $USER
 fi
@@ -20,7 +22,7 @@ sudo service apache2 start
 sudo service apache2 reload
 
 # install and start code-server
-curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.22.1
+curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
 /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
 if [ -z "$(ls -A $WORKDIR)" ]; then
@@ -56,6 +58,10 @@ EOSQL
 
     /usr/bin/php8.3 artisan key:generate
     /usr/bin/php8.3 artisan migrate
+
+    if $SEED; then
+      /usr/bin/php8.3 artisan db:seed
+    fi
 fi
 
 sudo /usr/bin/supervisord -s -c /etc/supervisor/conf.d/supervisord.conf >/tmp/supervisor.log 2>&1 &

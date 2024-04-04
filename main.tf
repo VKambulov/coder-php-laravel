@@ -26,7 +26,7 @@ module "filebrowser" {
   source   = "registry.coder.com/modules/filebrowser/coder"
   version  = "1.0.8"
   agent_id = coder_agent.main.id
-  folder   = "/var/www/html/project"
+  folder   = "/var/www/html"
 }
 
 module "jetbrains_gateway" {
@@ -34,8 +34,8 @@ module "jetbrains_gateway" {
   version        = "1.0.9"
   agent_id       = coder_agent.main.id
   agent_name     = "main"
-  folder         = "/var/www/html/project"
-  jetbrains_ides = ["GO", "WS", "IU", "PS"]
+  folder         = "/var/www/html"
+  jetbrains_ides = ["WS", "IU", "PS"]
   default        = "IU"
 }
 
@@ -63,17 +63,33 @@ resource "coder_app" "phpmyadmin" {
   subdomain     = false
 }
 
+resource "coder_app" "code-server" {
+  agent_id     = coder_agent.main.id
+  slug         = "code-server"
+  display_name = "VS Code Online"
+  url          = "http://localhost:13337/?folder=/var/www/html"
+  icon         = "/icon/code.svg"
+  subdomain    = false
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 5
+    threshold = 6
+  }
+}
+
 resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
   startup_script = "/usr/local/bin/start.sh"
 
-  # dir = "/var/www/html/project"
+  dir = "/var/www/html"
 
   env = {
-    GIT_AUTHOR_NAME     = coalesce(data.coder_workspace.me.owner_name, data.coder_workspace.me.owner)
+    GIT_AUTHOR_NAME     = data.coder_workspace.me.owner
     GIT_AUTHOR_EMAIL    = data.coder_workspace.me.owner_email
-    GIT_COMMITTER_NAME  = coalesce(data.coder_workspace.me.owner_name, data.coder_workspace.me.owner)
+    GIT_COMMITTER_NAME  = data.coder_workspace.me.owner
     GIT_COMMITTER_EMAIL = data.coder_workspace.me.owner_email
     GITHUB_TOKEN        = data.coder_external_auth.github.access_token
   }
@@ -121,7 +137,6 @@ resource "coder_agent" "main" {
   metadata {
     display_name = "Load Average (Host)"
     key          = "6_load_host"
-    # get load avg scaled by number of cores
     script   = <<EOT
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
@@ -137,22 +152,6 @@ resource "coder_agent" "main" {
     EOT
     interval     = 10
     timeout      = 1
-  }
-}
-
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
-  slug         = "code-server"
-  display_name = "code-server"
-  url          = "http://localhost:13337/?folder=/var/www/html"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 5
-    threshold = 6
   }
 }
 
@@ -211,6 +210,44 @@ data "coder_parameter" "custom_repo_url" {
   mutable      = true
 }
 
+data "coder_parameter" "home_volume" {
+  name         = "home_volume"
+  display_name = "Home folder volume"
+  order        = 3
+  description  = "Select how the Home folder volume will be used."
+  mutable      = true
+
+  option {
+    name        = "Local"
+    description = "The volume name will only be associated with this project"
+    value       = "${docker_volume.workspaces.name}-home"
+  }
+  option {
+    name        = "Global"
+    description = "The volume can be reused for other projects"
+    value       = "coder-home"
+  }
+}
+
+data "coder_parameter" "laravel_seed" {
+  name         = "laravel_seed"
+  display_name = "Run Laravel Seeder?"
+  order        = 4
+  description  = "Run db:seed command after setting up project."
+  type         = "bool"
+  mutable      = true
+  default      = false
+
+  option {
+    name        = "Yes"
+    value       = true
+  }
+  option {
+    name        = "No"
+    value       = false
+  }
+}
+
 resource "docker_image" "main" {
   name = "coder-${data.coder_workspace.me.id}"
 
@@ -218,7 +255,7 @@ resource "docker_image" "main" {
     context = "./build"
     build_args = {
       USER = "coder"
-      WORKDIR = "/var/www/html/project"
+      WORKDIR = "/var/www/html"
     }
   }
 
@@ -229,10 +266,6 @@ resource "docker_image" "main" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-
-  # Find the latest version here:
-  # https://github.com/coder/envbuilder/tags
-  # image = "ghcr.io/coder/envbuilder:0.2.8"
 
   image = docker_image.main.name
 
@@ -250,7 +283,8 @@ resource "docker_container" "workspace" {
     "CODER_AGENT_URL=${replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
     "INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
     "GIT_URL=${data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value}",
-    "WORKDIR=/var/www/html/project"
+    "WORKDIR=/var/www/html",
+    "SEED=${data.coder_parameter.laravel_seed.value}"
   ]
 
   host {
@@ -259,7 +293,7 @@ resource "docker_container" "workspace" {
   }
 
   volumes {
-    container_path = "/var/www/html/project"
+    container_path = "/var/www/html"
     volume_name    = docker_volume.workspaces.name
     read_only      = false
   }
@@ -278,11 +312,10 @@ resource "docker_container" "workspace" {
 
   volumes {
     container_path = "/home/coder"
-    volume_name    = "${docker_volume.workspaces.name}-home"
+    volume_name    = data.coder_parameter.home_volume.value
     read_only      = false
   }
 
-  # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
     value = data.coder_workspace.me.owner

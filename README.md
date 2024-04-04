@@ -14,5 +14,6 @@ tags: [docker, container, laravel, php]
 ## TODO
 
 - [ ] Fix PHPMyAdmin work.
-- [ ] Fix Coder 80/443 ports proxy.
-- [ ] Download and unzip archive instead git clone for repositories.
+- [ ] Download and unzip archive instead git clone for some repositories.
+- [ ] Postgresql support
+- [ ] Support Docker inside Coder container
