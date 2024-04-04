@@ -27,6 +27,7 @@ module "filebrowser" {
   version  = "1.0.8"
   agent_id = coder_agent.main.id
   folder   = "/var/www/html"
+  database_path = "/home/coder/filebrowser.db"
 }
 
 module "jetbrains_gateway" {

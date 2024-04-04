@@ -102,6 +102,6 @@ RUN useradd --groups sudo --create-home --shell /bin/bash $USER \
 	&& echo "${USER} ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/${USER} \
 	&& chmod 0440 /etc/sudoers.d/${USER}
 
-RUN rm -rf ${WORKDIR}/*
+RUN rm -rf /var/www/html/*
 
 USER ${USER}
