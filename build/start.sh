@@ -7,8 +7,6 @@ cd $WORKDIR
 sudo chown -R $USER:$USER /var/www/html
 sudo chown -R $USER:$USER /home/$USER
 
-sudo rm -rf $WORKDIR/*
-
 if [ ! -z "$WWWUSER" ]; then
     sudo usermod -u $WWWUSER $USER
 fi
