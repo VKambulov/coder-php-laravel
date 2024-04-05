@@ -265,6 +265,20 @@ resource "docker_image" "main" {
   }
 }
 
+resource "docker_network" "private_network" {
+  name = "network-${data.coder_workspace.me.id}"
+}
+
+resource "docker_container" "dind" {
+  image      = "docker:dind"
+  privileged = true
+  name       = "dind-${data.coder_workspace.me.id}"
+  entrypoint = ["dockerd", "-H", "tcp://0.0.0.0:2375"]
+  networks_advanced {
+    name = docker_network.private_network.name
+  }
+}
+
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
 
@@ -276,6 +290,8 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
 
+  command = ["sh", "-c", coder_agent.main.init_script]
+
   # Use the docker gateway if the access URL is 127.0.0.1
   entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
 
@@ -285,12 +301,17 @@ resource "docker_container" "workspace" {
     "INIT_SCRIPT=${replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")}",
     "GIT_URL=${data.coder_parameter.repo.value == "custom" ? data.coder_parameter.custom_repo_url.value : data.coder_parameter.repo.value}",
     "WORKDIR=/var/www/html",
-    "SEED=${data.coder_parameter.laravel_seed.value}"
+    "SEED=${data.coder_parameter.laravel_seed.value}",
+    "DOCKER_HOST=${docker_container.dind.name}:2375"
   ]
 
   host {
     host = "host.docker.internal"
     ip   = "host-gateway"
+  }
+
+  networks_advanced {
+    name = docker_network.private_network.name
   }
 
   volumes {

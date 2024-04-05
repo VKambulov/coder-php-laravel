@@ -16,4 +16,3 @@ tags: [docker, container, laravel, php]
 - [ ] Fix PHPMyAdmin work.
 - [ ] Download and unzip archive instead git clone for some repositories.
 - [ ] Postgresql support
-- [ ] Support Docker inside Coder container
