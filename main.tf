@@ -67,7 +67,7 @@ resource "coder_app" "phpmyadmin" {
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
   slug         = "code-server"
-  display_name = "VS Code Online"
+  display_name = "VS Code Web"
   url          = "http://localhost:13337/?folder=/var/www/html"
   icon         = "/icon/code.svg"
   subdomain    = false
@@ -187,10 +187,11 @@ data "coder_parameter" "repo" {
   name         = "repo"
   display_name = "Repository (auto)"
   order        = 1
-  description  = "Select a repository to automatically clone and start working with a devcontainer."
+  description  = "Select a repository to automatically clone."
   mutable      = true
   option {
     name        = "laravel/laravel"
+    icon        = "https://laravel.com/img/logomark.min.svg"
     description = "The Laravel Framework"
     value       = "https://github.com/laravel/laravel"
   }
@@ -207,7 +208,7 @@ data "coder_parameter" "custom_repo_url" {
   display_name = "Repository URL (custom)"
   order        = 2
   default      = ""
-  description  = "Optionally enter a custom repository URL, see [awesome-devcontainers](https://github.com/manekinekko/awesome-devcontainers)."
+  description  = "Optionally enter a custom repository URL."
   mutable      = true
 }
 
@@ -238,15 +239,6 @@ data "coder_parameter" "laravel_seed" {
   type         = "bool"
   mutable      = true
   default      = false
-
-  option {
-    name        = "Yes"
-    value       = true
-  }
-  option {
-    name        = "No"
-    value       = false
-  }
 }
 
 resource "docker_image" "main" {
