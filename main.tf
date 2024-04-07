@@ -84,8 +84,7 @@ resource "coder_agent" "main" {
   arch           = data.coder_provisioner.me.arch
   os             = "linux"
   startup_script = "/usr/local/bin/start.sh"
-
-  dir = "/var/www/html"
+  dir            = "/var/www/html"
 
   env = {
     GIT_AUTHOR_NAME     = data.coder_workspace.me.owner
@@ -156,33 +155,6 @@ resource "coder_agent" "main" {
   }
 }
 
-resource "docker_volume" "workspaces" {
-  name = "coder-${data.coder_workspace.me.id}"
-  # Protect the volume from being deleted due to changes in attributes.
-  lifecycle {
-    ignore_changes = all
-  }
-  # Add labels in Docker to keep track of orphan resources.
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace.me.owner
-  }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace.me.owner_id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  # This field becomes outdated if the workspace is renamed but can
-  # be useful for debugging or cleaning out dangling volumes.
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = data.coder_workspace.me.name
-  }
-}
-
 data "coder_parameter" "repo" {
   name         = "repo"
   display_name = "Repository (auto)"
@@ -212,29 +184,10 @@ data "coder_parameter" "custom_repo_url" {
   mutable      = true
 }
 
-data "coder_parameter" "home_volume" {
-  name         = "home_volume"
-  display_name = "Home folder volume"
-  order        = 3
-  description  = "Select how the Home folder volume will be used."
-  mutable      = true
-
-  option {
-    name        = "Local"
-    description = "The volume name will only be associated with this project"
-    value       = "${docker_volume.workspaces.name}-home"
-  }
-  option {
-    name        = "Global"
-    description = "The volume can be reused for other projects"
-    value       = "coder-home"
-  }
-}
-
 data "coder_parameter" "laravel_seed" {
   name         = "laravel_seed"
   display_name = "Run Laravel Seeder?"
-  order        = 4
+  order        = 3
   description  = "Run db:seed command after setting up project."
   type         = "bool"
   mutable      = true
@@ -242,7 +195,7 @@ data "coder_parameter" "laravel_seed" {
 }
 
 resource "docker_image" "main" {
-  name = "coder-${data.coder_workspace.me.id}"
+  name = data.coder_workspace.me.name
 
   build {
     context = "./build"
@@ -258,14 +211,15 @@ resource "docker_image" "main" {
 }
 
 resource "docker_network" "private_network" {
-  name = "network-${data.coder_workspace.me.id}"
+  name = "coder-${data.coder_workspace.me.name}-network"
 }
 
 resource "docker_container" "dind" {
   image      = "docker:dind"
   privileged = true
-  name       = "dind-${data.coder_workspace.me.id}"
+  name       = "coder-${data.coder_workspace.me.name}-dind"
   entrypoint = ["dockerd", "-H", "tcp://0.0.0.0:2375"]
+
   networks_advanced {
     name = docker_network.private_network.name
   }
@@ -308,25 +262,25 @@ resource "docker_container" "workspace" {
 
   volumes {
     container_path = "/var/www/html"
-    volume_name    = docker_volume.workspaces.name
+    volume_name    = "coder-${data.coder_workspace.me.name}-project"
     read_only      = false
   }
 
   volumes {
     container_path = "/var/lib/mysql"
-    volume_name    = "${docker_volume.workspaces.name}-mysql"
+    volume_name    = "coder-${data.coder_workspace.me.name}-mysql"
     read_only      = false
   }
 
   volumes {
     container_path = "/var/lib/postgresql/data"
-    volume_name    = "${docker_volume.workspaces.name}-postgresql"
+    volume_name    = "coder-${data.coder_workspace.me.name}-postgresql"
     read_only      = false
   }
 
   volumes {
     container_path = "/home/coder"
-    volume_name    = data.coder_parameter.home_volume.value
+    volume_name    = "coder-${data.coder_workspace.me.name}-home"
     read_only      = false
   }
 
@@ -345,5 +299,14 @@ resource "docker_container" "workspace" {
   labels {
     label = "coder.workspace_name"
     value = data.coder_workspace.me.name
+  }
+
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+
+  lifecycle {
+    ignore_changes = all
   }
 }
